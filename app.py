@@ -27,7 +27,7 @@ Reglas:
 
 st.set_page_config(
     page_title=f"{APP_NAME} · IA local",
-    page_icon="✦",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -486,7 +486,7 @@ if not st.session_state.messages:
 # HISTORIAL
 # ============================================================
 for message in st.session_state.messages:
-    avatar = "👤" if message["role"] == "user" else "✦"
+    avatar = "👤" if message["role"] == "user" else "🤖"
     with st.chat_message(message["role"], avatar=avatar):
         st.markdown(message["content"])
 
@@ -505,7 +505,7 @@ if prompt:
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant", avatar="✦"):
+    with st.chat_message("assistant", avatar="🤖"):
         placeholder = st.empty()
         placeholder.markdown("_Pensando…_")
         start = time.perf_counter()
