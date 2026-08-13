@@ -1,923 +1,539 @@
-# ============================================================
-# CHATBOT GRATUITO CON MACHINE LEARNING + STREAMLIT
-# Archivo único: app.py
-# No usa OpenAI
-# No usa API Keys
-# No requiere modelos de pago
-# Modelo ML: Multinomial Naive Bayes implementado desde cero
-# ============================================================
+import time
+import platform
+from datetime import datetime
 
 import streamlit as st
-import math
-import random
-import re
-import unicodedata
-from collections import Counter, defaultdict
-
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # ============================================================
-# 1. CONFIGURACIÓN DE LA PÁGINA
+# CONFIGURACIÓN GENERAL
 # ============================================================
+APP_NAME = "Nova Chat"
+MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
+MAX_INPUT_TOKENS = 2048
+DEFAULT_MAX_NEW_TOKENS = 256
+
+SYSTEM_PROMPT = """
+Eres Nova, un asistente de inteligencia artificial útil, claro, amable y profesional.
+Reglas:
+- Responde principalmente en español, salvo que el usuario escriba claramente en otro idioma.
+- Sé conciso cuando la pregunta sea sencilla y amplía cuando el tema lo necesite.
+- Si no sabes algo o no tienes información suficiente, dilo claramente y no inventes datos.
+- Usa listas, títulos y código Markdown cuando mejoren la comprensión.
+- Cuando muestres código, entrégalo completo y bien formateado cuando sea razonable.
+- No digas que tienes acceso a Internet, archivos, cámaras, correo u otras herramientas si no las tienes.
+""".strip()
 
 st.set_page_config(
-    page_title="ChatBot ML",
-    page_icon="🤖",
-    layout="centered",
+    page_title=f"{APP_NAME} · IA local",
+    page_icon="✦",
+    layout="wide",
     initial_sidebar_state="expanded",
 )
 
-
 # ============================================================
-# 2. ESTILOS
+# ESTILOS UI / UX
 # ============================================================
-
 st.markdown(
     """
     <style>
+    :root {
+        --bg: #07111f;
+        --panel: rgba(15, 23, 42, 0.78);
+        --panel-2: rgba(30, 41, 59, 0.72);
+        --border: rgba(148, 163, 184, 0.16);
+        --primary: #22d3ee;
+        --primary-2: #60a5fa;
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --success: #34d399;
+    }
+
+    html, body, [class*="css"] {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                     "Segoe UI", sans-serif;
+    }
 
     .stApp {
         background:
-        radial-gradient(circle at top left, #172554 0%, transparent 28%),
-        radial-gradient(circle at top right, #164e63 0%, transparent 25%),
-        #07111f;
+            radial-gradient(circle at 12% 0%, rgba(37, 99, 235, .18), transparent 28%),
+            radial-gradient(circle at 88% 4%, rgba(6, 182, 212, .14), transparent 25%),
+            linear-gradient(180deg, #07111f 0%, #0a1220 50%, #07101c 100%);
+        color: var(--text);
     }
 
-    .main-title {
-        font-size: 2.5rem;
+    .block-container {
+        max-width: 1000px;
+        padding-top: 2.2rem;
+        padding-bottom: 7rem;
+    }
+
+    [data-testid="stSidebar"] {
+        background: rgba(5, 12, 24, .96);
+        border-right: 1px solid var(--border);
+    }
+
+    [data-testid="stSidebar"] .block-container {
+        padding-top: 1.5rem;
+    }
+
+    .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 1.35rem 1.45rem;
+        margin-bottom: 1.1rem;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, .88), rgba(8, 47, 73, .62));
+        box-shadow: 0 20px 70px rgba(0, 0, 0, .22);
+    }
+
+    .hero::after {
+        content: "";
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        border-radius: 999px;
+        right: -90px;
+        top: -110px;
+        background: rgba(34, 211, 238, .13);
+        filter: blur(2px);
+    }
+
+    .brand-row {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+
+    .brand-icon {
+        width: 50px;
+        height: 50px;
+        flex: 0 0 50px;
+        display: grid;
+        place-items: center;
+        border-radius: 16px;
+        font-size: 1.45rem;
         font-weight: 800;
-        text-align: center;
-        margin-bottom: 0;
-        background: linear-gradient(
-            90deg,
-            #38bdf8,
-            #22d3ee,
-            #a5f3fc
-        );
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #04111f;
+        background: linear-gradient(135deg, #67e8f9, #60a5fa);
+        box-shadow: 0 10px 30px rgba(34, 211, 238, .18);
     }
 
-    .subtitle {
-        text-align: center;
-        color: #94a3b8;
-        margin-top: 5px;
-        margin-bottom: 25px;
+    .hero h1 {
+        padding: 0;
+        margin: 0;
+        font-size: clamp(1.65rem, 4vw, 2.35rem);
+        line-height: 1.05;
+        letter-spacing: -.04em;
     }
 
-    .status-box {
-        background: rgba(15, 23, 42, 0.75);
-        border: 1px solid rgba(56, 189, 248, 0.25);
-        padding: 13px 16px;
-        border-radius: 14px;
-        margin-bottom: 20px;
+    .hero p {
+        margin: .38rem 0 0 0;
+        color: #b6c4d7;
+        font-size: .98rem;
     }
 
-    .footer {
-        text-align: center;
+    .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem;
+        margin-top: 1rem;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .38rem .66rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(15, 23, 42, .62);
+        color: #cbd5e1;
+        font-size: .78rem;
+    }
+
+    .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow: 0 0 10px rgba(52, 211, 153, .75);
+    }
+
+    [data-testid="stChatMessage"] {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: .35rem .55rem;
+        margin-bottom: .8rem;
+        background: rgba(15, 23, 42, .52);
+        box-shadow: 0 10px 35px rgba(0, 0, 0, .10);
+    }
+
+    [data-testid="stChatMessage"] p,
+    [data-testid="stChatMessage"] li {
+        line-height: 1.62;
+    }
+
+    [data-testid="stChatInput"] {
+        border-radius: 18px;
+    }
+
+    [data-testid="stChatInput"] textarea {
+        font-size: 1rem;
+    }
+
+    .empty-state {
+        padding: 1.1rem 1.2rem;
+        border-radius: 18px;
+        border: 1px dashed rgba(148, 163, 184, .25);
+        background: rgba(15, 23, 42, .36);
+        color: var(--muted);
+        margin: .5rem 0 1rem;
+    }
+
+    .tiny-note {
         color: #64748b;
-        font-size: 0.8rem;
-        margin-top: 35px;
+        font-size: .78rem;
+        text-align: center;
+        margin-top: 1.4rem;
     }
 
-    div[data-testid="stSidebar"] {
-        background: #081321;
+    .stButton > button, .stDownloadButton > button {
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        transition: transform .15s ease, border-color .15s ease;
     }
 
+    .stButton > button:hover, .stDownloadButton > button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(34, 211, 238, .42);
+    }
+
+    @media (max-width: 640px) {
+        .block-container {
+            padding-top: 1rem;
+            padding-left: .8rem;
+            padding-right: .8rem;
+        }
+        .hero {
+            border-radius: 20px;
+            padding: 1.1rem;
+        }
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            flex-basis: 44px;
+            border-radius: 14px;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-
 # ============================================================
-# 3. BASE DE CONOCIMIENTO / DATOS DE ENTRENAMIENTO
+# ESTADO DE SESIÓN
 # ============================================================
-#
-# Cada intención tiene:
-# - patrones: frases con las que se entrena el modelo
-# - respuestas: respuestas posibles del chatbot
-#
-# Puedes agregar todas las categorías y preguntas que quieras.
-# ============================================================
-
-INTENTS = {
-
-    "saludo": {
-        "patterns": [
-            "hola",
-            "buenas",
-            "buenos dias",
-            "buenas tardes",
-            "buenas noches",
-            "hey",
-            "holi",
-            "como estas",
-            "que tal",
-            "hola chatbot",
-            "hola asistente",
-            "un saludo",
-            "saludos",
-        ],
-        "responses": [
-            "¡Hola! 👋 ¿En qué puedo ayudarte?",
-            "¡Hola! 🤖 Estoy listo para ayudarte.",
-            "¡Qué gusto saludarte! ¿Qué quieres saber?",
-        ],
-    },
-
-    "despedida": {
-        "patterns": [
-            "adios",
-            "chao",
-            "hasta luego",
-            "nos vemos",
-            "hasta pronto",
-            "me voy",
-            "bye",
-            "terminar",
-            "finalizar",
-        ],
-        "responses": [
-            "¡Hasta luego! 👋",
-            "Fue un gusto ayudarte. ¡Nos vemos!",
-            "¡Hasta pronto! 🤖",
-        ],
-    },
-
-    "agradecimiento": {
-        "patterns": [
-            "gracias",
-            "muchas gracias",
-            "te agradezco",
-            "excelente gracias",
-            "perfecto gracias",
-            "muy amable",
-            "me ayudaste",
-            "gracias por la ayuda",
-        ],
-        "responses": [
-            "¡Con mucho gusto! 😊",
-            "Para eso estoy. 🤖",
-            "¡Me alegra haberte ayudado!",
-        ],
-    },
-
-    "identidad": {
-        "patterns": [
-            "quien eres",
-            "como te llamas",
-            "que eres",
-            "eres un robot",
-            "eres inteligencia artificial",
-            "eres un chatbot",
-            "cual es tu nombre",
-            "presentate",
-        ],
-        "responses": [
-            (
-                "Soy un chatbot construido con Python y Streamlit. "
-                "Utilizo un modelo de Machine Learning llamado "
-                "Multinomial Naive Bayes para identificar la intención "
-                "de tus mensajes."
-            )
-        ],
-    },
-
-    "machine_learning": {
-        "patterns": [
-            "que es machine learning",
-            "explicame machine learning",
-            "aprendizaje automatico",
-            "como funciona machine learning",
-            "que significa machine learning",
-            "para que sirve machine learning",
-            "que es aprendizaje de maquina",
-            "modelos de machine learning",
-        ],
-        "responses": [
-            (
-                "Machine Learning o aprendizaje automático es una rama "
-                "de la inteligencia artificial que permite a un sistema "
-                "identificar patrones en datos y utilizarlos para realizar "
-                "predicciones o clasificaciones."
-            ),
-            (
-                "El Machine Learning consiste en entrenar algoritmos con "
-                "datos para que puedan reconocer patrones y tomar decisiones "
-                "sin programar manualmente cada posible situación."
-            ),
-        ],
-    },
-
-    "naive_bayes": {
-        "patterns": [
-            "que es naive bayes",
-            "como funciona naive bayes",
-            "explicame naive bayes",
-            "modelo naive bayes",
-            "clasificador naive bayes",
-            "algoritmo bayes",
-            "bayes machine learning",
-        ],
-        "responses": [
-            (
-                "Naive Bayes es un algoritmo de clasificación basado en "
-                "probabilidades. En este chatbot analiza las palabras de "
-                "tu mensaje y calcula cuál de las intenciones aprendidas "
-                "es la más probable."
-            )
-        ],
-    },
-
-    "inteligencia_artificial": {
-        "patterns": [
-            "que es inteligencia artificial",
-            "explicame inteligencia artificial",
-            "que significa ia",
-            "para que sirve la inteligencia artificial",
-            "como funciona una inteligencia artificial",
-            "que es ia",
-            "inteligencia artificial",
-        ],
-        "responses": [
-            (
-                "La inteligencia artificial es un área de la informática "
-                "dedicada a crear sistemas capaces de realizar tareas que "
-                "normalmente requieren capacidades asociadas a la "
-                "inteligencia humana, como clasificar, predecir, reconocer "
-                "patrones o procesar lenguaje."
-            )
-        ],
-    },
-
-    "python": {
-        "patterns": [
-            "que es python",
-            "para que sirve python",
-            "lenguaje python",
-            "programacion en python",
-            "python programacion",
-            "aprender python",
-            "que puedo hacer con python",
-        ],
-        "responses": [
-            (
-                "Python es un lenguaje de programación muy utilizado en "
-                "desarrollo web, automatización, análisis de datos, "
-                "inteligencia artificial y Machine Learning."
-            )
-        ],
-    },
-
-    "streamlit": {
-        "patterns": [
-            "que es streamlit",
-            "para que sirve streamlit",
-            "como funciona streamlit",
-            "aplicacion streamlit",
-            "crear app con streamlit",
-            "streamlit python",
-            "desplegar streamlit",
-        ],
-        "responses": [
-            (
-                "Streamlit es una herramienta de Python que permite crear "
-                "aplicaciones web interactivas directamente desde código "
-                "Python. Es especialmente útil para proyectos de datos, "
-                "Machine Learning y prototipos."
-            )
-        ],
-    },
-
-    "funcionamiento_bot": {
-        "patterns": [
-            "como funcionas",
-            "como funciona este chatbot",
-            "como respondes",
-            "como entiendes mis preguntas",
-            "como sabes que responder",
-            "como detectas lo que escribo",
-            "como fuiste entrenado",
-        ],
-        "responses": [
-            (
-                "Primero limpio y separo las palabras de tu mensaje. "
-                "Después un clasificador Multinomial Naive Bayes calcula "
-                "la probabilidad de cada intención. Finalmente selecciono "
-                "la intención más probable y genero una respuesta asociada."
-            )
-        ],
-    },
-
-    "capacidades": {
-        "patterns": [
-            "que puedes hacer",
-            "en que puedes ayudarme",
-            "que sabes hacer",
-            "cuales son tus funciones",
-            "que puedo preguntarte",
-            "ayudame",
-            "necesito ayuda",
-            "opciones",
-        ],
-        "responses": [
-            (
-                "Puedo conversar contigo y reconocer diferentes tipos de "
-                "preguntas utilizando Machine Learning. Por ejemplo, "
-                "pregúntame sobre Python, Streamlit, Machine Learning, "
-                "inteligencia artificial o cómo funciona este chatbot."
-            )
-        ],
-    },
-
-    "gratis": {
-        "patterns": [
-            "eres gratis",
-            "esto cuesta dinero",
-            "necesito pagar",
-            "usa api de pago",
-            "cuanto cuesta",
-            "hay que pagar",
-            "es gratuito",
-            "tiene costo",
-            "necesito una api",
-            "necesito api key",
-        ],
-        "responses": [
-            (
-                "Este chatbot no necesita una API de inteligencia artificial "
-                "de pago. El modelo de clasificación se ejecuta directamente "
-                "con Python dentro de la aplicación."
-            )
-        ],
-    },
-
-    "entrenamiento": {
-        "patterns": [
-            "como entrenar el chatbot",
-            "como agregar preguntas",
-            "quiero agregar respuestas",
-            "como agregar conocimiento",
-            "entrenar modelo",
-            "agregar datos de entrenamiento",
-            "personalizar chatbot",
-        ],
-        "responses": [
-            (
-                "Puedes entrenarme con más ejemplos agregando nuevas frases "
-                "en la variable INTENTS del archivo app.py. Mientras más "
-                "ejemplos representativos tenga cada intención, mejor podrá "
-                "clasificar preguntas similares."
-            )
-        ],
-    },
-
-    "contacto": {
-        "patterns": [
-            "quiero hablar con alguien",
-            "contacto",
-            "contactar",
-            "soporte",
-            "asesor",
-            "necesito un asesor",
-            "hablar con una persona",
-        ],
-        "responses": [
-            (
-                "Esta versión es una demostración. Puedes reemplazar esta "
-                "respuesta con el teléfono, WhatsApp, correo o formulario "
-                "de contacto de tu empresa."
-            )
-        ],
-    },
-}
-
-
-# ============================================================
-# 4. FUNCIONES PARA PROCESAR TEXTO
-# ============================================================
-
-def remove_accents(text):
-    """
-    Elimina acentos:
-    'programación' -> 'programacion'
-    """
-    text = unicodedata.normalize("NFD", text)
-
-    return "".join(
-        char
-        for char in text
-        if unicodedata.category(char) != "Mn"
-    )
-
-
-def tokenize(text):
-    """
-    Convierte texto a una lista de palabras normalizadas.
-    """
-
-    text = text.lower()
-    text = remove_accents(text)
-
-    # Conservamos letras, números y algunos caracteres útiles.
-    words = re.findall(r"[a-z0-9]+", text)
-
-    return words
-
-
-# ============================================================
-# 5. MODELO MULTINOMIAL NAIVE BAYES DESDE CERO
-# ============================================================
-
-class NaiveBayesChatbot:
-
-    def __init__(self, alpha=1.0):
-
-        # Suavizado de Laplace.
-        self.alpha = alpha
-
-        # Vocabulario conocido.
-        self.vocabulary = set()
-
-        # Número de documentos de cada clase.
-        self.class_document_counts = Counter()
-
-        # Cantidad de cada palabra por clase.
-        self.word_counts = defaultdict(Counter)
-
-        # Total de palabras de cada clase.
-        self.total_words = Counter()
-
-        # Cantidad total de documentos.
-        self.total_documents = 0
-
-        # Clases disponibles.
-        self.classes = []
-
-    def fit(self, intents):
-        """
-        Entrena el modelo utilizando los patterns definidos
-        dentro de INTENTS.
-        """
-
-        self.classes = list(intents.keys())
-
-        for intent_name, intent_data in intents.items():
-
-            for sentence in intent_data["patterns"]:
-
-                self.total_documents += 1
-
-                self.class_document_counts[intent_name] += 1
-
-                tokens = tokenize(sentence)
-
-                for token in tokens:
-
-                    self.vocabulary.add(token)
-
-                    self.word_counts[intent_name][token] += 1
-
-                    self.total_words[intent_name] += 1
-
-        return self
-
-    def predict(self, text):
-        """
-        Predice la intención y devuelve:
-
-        intención
-        confianza
-        palabras reconocidas
-        """
-
-        tokens = tokenize(text)
-
-        if not tokens:
-            return None, 0.0, 0
-
-        known_tokens = [
-            token
-            for token in tokens
-            if token in self.vocabulary
-        ]
-
-        # Si no reconoce absolutamente ninguna palabra,
-        # evitamos inventar una intención.
-        if not known_tokens:
-            return None, 0.0, 0
-
-        vocabulary_size = len(self.vocabulary)
-
-        log_scores = {}
-
-        # ====================================================
-        # Probabilidad para cada intención
-        # ====================================================
-
-        for intent_name in self.classes:
-
-            # P(clase)
-            class_probability = (
-                self.class_document_counts[intent_name]
-                / self.total_documents
-            )
-
-            score = math.log(class_probability)
-
-            # P(palabra | clase)
-            for token in known_tokens:
-
-                token_count = self.word_counts[intent_name][token]
-
-                probability = (
-                    token_count + self.alpha
-                ) / (
-                    self.total_words[intent_name]
-                    + self.alpha * vocabulary_size
-                )
-
-                score += math.log(probability)
-
-            log_scores[intent_name] = score
-
-        # ====================================================
-        # Encontramos la clase con mayor probabilidad
-        # ====================================================
-
-        best_intent = max(
-            log_scores,
-            key=log_scores.get
-        )
-
-        # ====================================================
-        # Convertimos log-scores en probabilidades aproximadas
-        # usando Softmax de manera numéricamente estable.
-        # ====================================================
-
-        maximum_score = max(log_scores.values())
-
-        exponentials = {
-            intent: math.exp(score - maximum_score)
-            for intent, score in log_scores.items()
-        }
-
-        denominator = sum(exponentials.values())
-
-        probabilities = {
-            intent: value / denominator
-            for intent, value in exponentials.items()
-        }
-
-        confidence = probabilities[best_intent]
-
-        return (
-            best_intent,
-            confidence,
-            len(known_tokens)
-        )
-
-
-# ============================================================
-# 6. ENTRENAMIENTO DEL MODELO
-# ============================================================
-
-@st.cache_resource
-def train_model():
-    """
-    Entrena una única vez el modelo mientras la aplicación
-    esté funcionando.
-    """
-
-    chatbot_model = NaiveBayesChatbot(alpha=1.0)
-
-    chatbot_model.fit(INTENTS)
-
-    return chatbot_model
-
-
-model = train_model()
-
-
-# ============================================================
-# 7. RESPUESTA DEL CHATBOT
-# ============================================================
-
-def generate_response(user_message):
-    """
-    Procesa el mensaje del usuario, predice la intención
-    y devuelve la respuesta.
-    """
-
-    intent, confidence, known_words = model.predict(
-        user_message
-    )
-
-    # ========================================================
-    # CASO 1: mensaje completamente desconocido
-    # ========================================================
-
-    if intent is None:
-
-        return {
-            "response": (
-                "🤔 Todavía no tengo suficiente conocimiento para "
-                "responder esa pregunta.\n\n"
-                "Puedes agregar nuevos ejemplos y respuestas en la "
-                "variable `INTENTS` para enseñarme nuevos temas."
-            ),
-            "intent": "desconocido",
-            "confidence": 0.0,
-        }
-
-    # ========================================================
-    # CASO 2: confianza demasiado baja
-    # ========================================================
-
-    if confidence < 0.25:
-
-        return {
-            "response": (
-                "No estoy completamente seguro de haber entendido "
-                "tu pregunta. ¿Puedes escribirla de otra manera?"
-            ),
-            "intent": intent,
-            "confidence": confidence,
-        }
-
-    # ========================================================
-    # CASO 3: intención reconocida
-    # ========================================================
-
-    response = random.choice(
-        INTENTS[intent]["responses"]
-    )
-
-    return {
-        "response": response,
-        "intent": intent,
-        "confidence": confidence,
-    }
-
-
-# ============================================================
-# 8. ESTADO DE LA CONVERSACIÓN
-# ============================================================
-
 if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    st.session_state.messages = [
+if "pending_prompt" not in st.session_state:
+    st.session_state.pending_prompt = None
 
-        {
-            "role": "assistant",
-            "content": (
-                "¡Hola! 👋 Soy un chatbot gratuito construido con "
-                "Streamlit y Machine Learning.\n\n"
-                "¿En qué puedo ayudarte?"
-            ),
-            "intent": "inicio",
-            "confidence": 1.0,
-        }
+if "last_latency" not in st.session_state:
+    st.session_state.last_latency = None
 
+# ============================================================
+# MODELO
+# ============================================================
+@st.cache_resource(show_spinner=False)
+def load_model():
+    """Descarga el modelo desde Hugging Face la primera vez y lo reutiliza en caché."""
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer.truncation_side = "left"
+
+    # torch_dtype="auto" respeta el dtype recomendado en la configuración del modelo
+    # y normalmente reduce memoria frente a forzar float32.
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        torch_dtype="auto",
+        low_cpu_mem_usage=True,
+    )
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
+
+    return tokenizer, model, device
+
+
+def build_model_messages(history, turns_to_keep):
+    """Construye el contexto del LLM conservando solamente los últimos turnos."""
+    clean_history = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history
+        if m.get("role") in {"user", "assistant"}
     ]
 
+    # Un turno suele tener user + assistant. Dejamos margen para el último user.
+    max_messages = max(2, turns_to_keep * 2 + 1)
+    clean_history = clean_history[-max_messages:]
+
+    return [{"role": "system", "content": SYSTEM_PROMPT}] + clean_history
+
+
+def generate_response(tokenizer, model, device, history, temperature, top_p,
+                      max_new_tokens, turns_to_keep):
+    """Genera una respuesta con Qwen usando el chat template oficial del tokenizer."""
+    messages = build_model_messages(history, turns_to_keep)
+
+    prompt_text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+    inputs = tokenizer(
+        prompt_text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=MAX_INPUT_TOKENS,
+    )
+    inputs = {key: value.to(device) for key, value in inputs.items()}
+
+    generation_kwargs = {
+        "max_new_tokens": int(max_new_tokens),
+        "repetition_penalty": 1.08,
+        "pad_token_id": tokenizer.eos_token_id,
+        "eos_token_id": tokenizer.eos_token_id,
+        "use_cache": True,
+    }
+
+    if temperature <= 0.05:
+        generation_kwargs["do_sample"] = False
+    else:
+        generation_kwargs.update({
+            "do_sample": True,
+            "temperature": float(temperature),
+            "top_p": float(top_p),
+        })
+
+    with torch.inference_mode():
+        output_ids = model.generate(**inputs, **generation_kwargs)
+
+    input_length = inputs["input_ids"].shape[1]
+    new_tokens = output_ids[0][input_length:]
+    answer = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+
+    if not answer:
+        answer = "No pude generar una respuesta útil. Intenta reformular tu pregunta."
+
+    return answer
+
+
+def conversation_as_text(messages):
+    lines = [f"Conversación con {APP_NAME}", "=" * 45, ""]
+    for msg in messages:
+        speaker = "Tú" if msg["role"] == "user" else APP_NAME
+        lines.append(f"{speaker}:\n{msg['content']}\n")
+    return "\n".join(lines)
+
+
+def clear_chat():
+    st.session_state.messages = []
+    st.session_state.pending_prompt = None
+    st.session_state.last_latency = None
 
 # ============================================================
-# 9. SIDEBAR
+# SIDEBAR
 # ============================================================
-
 with st.sidebar:
+    st.markdown("### ✦ Nova Chat")
+    st.caption("LLM gratuito ejecutado en el servidor de tu app")
 
-    st.title("🤖 ChatBot ML")
+    st.divider()
+    st.markdown("**Modelo activo**")
+    st.code(MODEL_NAME, language=None)
 
-    st.markdown("---")
-
-    st.subheader("Modelo")
-
-    st.success(
-        "Multinomial Naive Bayes"
+    temperature = st.slider(
+        "Creatividad",
+        min_value=0.0,
+        max_value=1.2,
+        value=0.65,
+        step=0.05,
+        help="Valores bajos = más predecible. Valores altos = más creativo.",
     )
 
-    st.write(
-        "El modelo se ejecuta directamente dentro "
-        "de esta aplicación."
+    top_p = st.slider(
+        "Diversidad (top-p)",
+        min_value=0.1,
+        max_value=1.0,
+        value=0.90,
+        step=0.05,
     )
 
-    st.markdown("---")
-
-    st.subheader("📊 Información")
-
-    st.metric(
-        "Intenciones",
-        len(INTENTS)
+    max_new_tokens = st.slider(
+        "Longitud máxima",
+        min_value=64,
+        max_value=512,
+        value=DEFAULT_MAX_NEW_TOKENS,
+        step=32,
+        help="Más tokens permiten respuestas más largas, pero tardan más.",
     )
 
-    total_examples = sum(
-        len(data["patterns"])
-        for data in INTENTS.values()
+    turns_to_keep = st.slider(
+        "Memoria de conversación",
+        min_value=1,
+        max_value=8,
+        value=4,
+        step=1,
+        help="Número aproximado de intercambios recientes que se envían de nuevo al modelo.",
     )
 
-    st.metric(
-        "Ejemplos de entrenamiento",
-        total_examples
+    st.divider()
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("🗑️ Limpiar", use_container_width=True):
+            clear_chat()
+            st.rerun()
+
+    with col_b:
+        st.download_button(
+            "⬇️ Exportar",
+            data=conversation_as_text(st.session_state.messages),
+            file_name=f"nova_chat_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+            mime="text/plain",
+            use_container_width=True,
+            disabled=not bool(st.session_state.messages),
+        )
+
+    with st.expander("Información técnica"):
+        st.write(f"**Python:** {platform.python_version()}")
+        st.write(f"**PyTorch:** {torch.__version__}")
+        st.write(f"**Hardware:** {'GPU' if torch.cuda.is_available() else 'CPU'}")
+        st.write(f"**Contexto usado:** hasta {MAX_INPUT_TOKENS} tokens")
+        if st.session_state.last_latency is not None:
+            st.write(f"**Última generación:** {st.session_state.last_latency:.1f} s")
+
+# ============================================================
+# CABECERA
+# ============================================================
+st.markdown(
+    f"""
+    <div class="hero">
+        <div class="brand-row">
+            <div class="brand-icon">✦</div>
+            <div>
+                <h1>{APP_NAME}</h1>
+                <p>Tu asistente con IA generativa · ejecución local del modelo · sin pagar por mensaje</p>
+            </div>
+        </div>
+        <div class="badges">
+            <span class="badge"><span class="status-dot"></span> Modelo local activo</span>
+            <span class="badge">🤗 Hugging Face</span>
+            <span class="badge">💬 Memoria conversacional</span>
+            <span class="badge">🔑 Sin API key</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ============================================================
+# CARGA DEL MODELO
+# ============================================================
+try:
+    with st.spinner("Preparando el modelo de IA… La primera ejecución descarga Qwen desde Hugging Face."):
+        tokenizer, model, device = load_model()
+except Exception as exc:
+    st.error("No fue posible cargar el modelo de Hugging Face.")
+    st.code(str(exc), language=None)
+    st.info(
+        "Verifica que estén instalados `transformers>=4.37`, `torch`, `accelerate` y `streamlit`, "
+        "y que el servidor tenga conexión a Internet durante la primera descarga."
+    )
+    st.stop()
+
+# ============================================================
+# MENSAJE INICIAL + SUGERENCIAS
+# ============================================================
+if not st.session_state.messages:
+    st.markdown(
+        """
+        <div class="empty-state">
+            <strong>¿Qué quieres hacer hoy?</strong><br>
+            Puedes pedirme explicaciones, ideas, resúmenes, ayuda con programación o redacción.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    st.metric(
-        "Palabras aprendidas",
-        len(model.vocabulary)
-    )
-
-    st.markdown("---")
-
-    show_diagnostics = st.toggle(
-        "Mostrar diagnóstico ML",
-        value=False
-    )
-
-    st.caption(
-        "Actívalo para ver la intención y "
-        "confianza estimada por el modelo."
-    )
-
-    st.markdown("---")
-
-    if st.button(
-        "🗑️ Limpiar conversación",
-        use_container_width=True
-    ):
-
-        st.session_state.messages = [
-
-            {
-                "role": "assistant",
-                "content": (
-                    "Conversación reiniciada. 👋 "
-                    "¿En qué puedo ayudarte?"
-                ),
-                "intent": "inicio",
-                "confidence": 1.0,
-            }
-
-        ]
-
+    s1, s2, s3 = st.columns(3)
+    if s1.button("💡 Explícame IA", use_container_width=True):
+        st.session_state.pending_prompt = "Explícame qué es la inteligencia artificial con un ejemplo sencillo."
+        st.rerun()
+    if s2.button("🐍 Ayúdame con Python", use_container_width=True):
+        st.session_state.pending_prompt = "Dame un ejemplo sencillo y útil para aprender Python."
+        st.rerun()
+    if s3.button("🧠 ¿Cómo funcionas?", use_container_width=True):
+        st.session_state.pending_prompt = "Explícame de forma sencilla cómo funciona este chatbot y qué modelo utiliza."
         st.rerun()
 
-
 # ============================================================
-# 10. ENCABEZADO PRINCIPAL
+# HISTORIAL
 # ============================================================
-
-st.markdown(
-    '<div class="main-title">🤖 ChatBot ML</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    """
-    <div class="subtitle">
-    Chatbot gratuito desarrollado con Python,
-    Streamlit y Machine Learning
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    """
-    <div class="status-box">
-    🟢 <strong>Modelo activo</strong><br>
-    Sin API Key · Sin OpenAI · Sin pago por mensajes
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
-# 11. MOSTRAR HISTORIAL
-# ============================================================
-
 for message in st.session_state.messages:
+    avatar = "👤" if message["role"] == "user" else "✦"
+    with st.chat_message(message["role"], avatar=avatar):
+        st.markdown(message["content"])
 
-    avatar = "🤖"
+# ============================================================
+# ENTRADA + RESPUESTA
+# ============================================================
+prompt = st.session_state.pending_prompt
+if prompt:
+    st.session_state.pending_prompt = None
+else:
+    prompt = st.chat_input("Escribe un mensaje…", max_chars=4000)
 
-    if message["role"] == "user":
-        avatar = "👤"
+if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
 
-    with st.chat_message(
-        message["role"],
-        avatar=avatar
-    ):
+    with st.chat_message("user", avatar="👤"):
+        st.markdown(prompt)
 
-        st.markdown(
-            message["content"]
-        )
+    with st.chat_message("assistant", avatar="✦"):
+        placeholder = st.empty()
+        placeholder.markdown("_Pensando…_")
+        start = time.perf_counter()
 
-        # Mostramos diagnóstico únicamente para
-        # mensajes del asistente.
-        if (
-            show_diagnostics
-            and message["role"] == "assistant"
-            and "intent" in message
-            and message["intent"] != "inicio"
-        ):
-
-            confidence_percentage = (
-                message["confidence"] * 100
+        try:
+            answer = generate_response(
+                tokenizer=tokenizer,
+                model=model,
+                device=device,
+                history=st.session_state.messages,
+                temperature=temperature,
+                top_p=top_p,
+                max_new_tokens=max_new_tokens,
+                turns_to_keep=turns_to_keep,
+            )
+        except Exception as exc:
+            answer = (
+                "Ocurrió un problema al generar la respuesta. "
+                "Prueba reduciendo la longitud máxima o limpiando la conversación.\n\n"
+                f"`{type(exc).__name__}: {exc}`"
             )
 
-            st.caption(
-                f"🧠 Intención: `{message['intent']}` "
-                f"· Confianza: "
-                f"`{confidence_percentage:.1f}%`"
-            )
+        st.session_state.last_latency = time.perf_counter() - start
+        placeholder.markdown(answer)
 
-
-# ============================================================
-# 12. ENTRADA DEL USUARIO
-# ============================================================
-
-user_prompt = st.chat_input(
-    "Escribe tu mensaje..."
-)
-
-
-# ============================================================
-# 13. PROCESAR NUEVO MENSAJE
-# ============================================================
-
-if user_prompt:
-
-    # Guardamos mensaje del usuario.
-    user_message = {
-        "role": "user",
-        "content": user_prompt,
-    }
-
-    st.session_state.messages.append(
-        user_message
-    )
-
-    # Mostramos mensaje inmediatamente.
-    with st.chat_message(
-        "user",
-        avatar="👤"
-    ):
-
-        st.markdown(user_prompt)
-
-    # Ejecutamos modelo ML.
-    result = generate_response(
-        user_prompt
-    )
-
-    # Construimos mensaje del bot.
-    assistant_message = {
-        "role": "assistant",
-        "content": result["response"],
-        "intent": result["intent"],
-        "confidence": result["confidence"],
-    }
-
-    # Lo guardamos.
-    st.session_state.messages.append(
-        assistant_message
-    )
-
-    # Mostramos respuesta.
-    with st.chat_message(
-        "assistant",
-        avatar="🤖"
-    ):
-
-        st.markdown(
-            result["response"]
-        )
-
-        if show_diagnostics:
-
-            confidence_percentage = (
-                result["confidence"] * 100
-            )
-
-            st.caption(
-                f"🧠 Intención detectada: "
-                f"`{result['intent']}` "
-                f"· Confianza: "
-                f"`{confidence_percentage:.1f}%`"
-            )
-
-
-# ============================================================
-# 14. PIE DE PÁGINA
-# ============================================================
+    st.session_state.messages.append({"role": "assistant", "content": answer})
 
 st.markdown(
-    """
-    <div class="footer">
-    ChatBot ML · Python + Streamlit ·
-    Modelo gratuito ejecutado localmente
-    </div>
-    """,
-    unsafe_allow_html=True
+    "<div class='tiny-note'>Qwen puede equivocarse. Verifica la información importante antes de tomar decisiones.</div>",
+    unsafe_allow_html=True,
 )
