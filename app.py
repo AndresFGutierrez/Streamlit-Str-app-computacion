@@ -38,39 +38,96 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+
+    /* ========================================================
+       PALETA ACCESIBLE
+       ======================================================== */
+
     :root {
-        --bg: #07111f;
-        --panel: rgba(15, 23, 42, 0.78);
-        --panel-2: rgba(30, 41, 59, 0.72);
-        --border: rgba(148, 163, 184, 0.16);
-        --primary: #22d3ee;
-        --primary-2: #60a5fa;
-        --text: #f8fafc;
-        --muted: #94a3b8;
-        --success: #34d399;
+        --bg: #0B0F14;
+        --bg-soft: #10161D;
+
+        --panel: #151B23;
+        --panel-2: #1C2530;
+        --panel-hover: #222D3A;
+
+        --border: #334155;
+        --border-soft: #273444;
+        --border-focus: #60A5FA;
+
+        --primary: #60A5FA;
+        --primary-hover: #93C5FD;
+
+        --success: #34D399;
+        --success-dark: #166534;
+
+        --warning: #FBBF24;
+        --danger: #F87171;
+
+        --text: #F8FAFC;
+        --text-soft: #E2E8F0;
+        --muted: #CBD5E1;
+        --muted-2: #94A3B8;
+
+        --code-bg: #0D131A;
     }
 
-    html, body, [class*="css"] {
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-                     "Segoe UI", sans-serif;
+
+    /* ========================================================
+       BASE
+       ======================================================== */
+
+    html,
+    body,
+    [class*="css"] {
+        font-family:
+            Inter,
+            ui-sans-serif,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            sans-serif;
+    }
+
+    html {
+        background: var(--bg);
+    }
+
+    body {
+        background: var(--bg);
+        color: var(--text);
     }
 
     .stApp {
         background:
-            radial-gradient(circle at 12% 0%, rgba(37, 99, 235, .18), transparent 28%),
-            radial-gradient(circle at 88% 4%, rgba(6, 182, 212, .14), transparent 25%),
-            linear-gradient(180deg, #07111f 0%, #0a1220 50%, #07101c 100%);
+            linear-gradient(
+                180deg,
+                #0B0F14 0%,
+                #0D1218 50%,
+                #0B0F14 100%
+            );
         color: var(--text);
     }
 
+
+    /* ========================================================
+       CONTENEDOR PRINCIPAL
+       ======================================================== */
+
     .block-container {
         max-width: 1000px;
-        padding-top: 2.2rem;
+        padding-top: 2rem;
         padding-bottom: 7rem;
     }
 
+
+    /* ========================================================
+       SIDEBAR
+       ======================================================== */
+
     [data-testid="stSidebar"] {
-        background: rgba(5, 12, 24, .96);
+        background: #0D131A;
         border-right: 1px solid var(--border);
     }
 
@@ -78,156 +135,474 @@ st.markdown(
         padding-top: 1.5rem;
     }
 
+    [data-testid="stSidebar"] h3 {
+        color: var(--text);
+        font-weight: 700;
+    }
+
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] label {
+        color: var(--muted);
+    }
+
+    [data-testid="stSidebar"] hr {
+        border-color: var(--border);
+    }
+
+
+    /* ========================================================
+       CABECERA / HERO
+       ======================================================== */
+
     .hero {
         position: relative;
         overflow: hidden;
-        padding: 1.35rem 1.45rem;
-        margin-bottom: 1.1rem;
+
+        padding: 1.5rem 1.6rem;
+        margin-bottom: 1.25rem;
+
         border: 1px solid var(--border);
-        border-radius: 24px;
-        background: linear-gradient(135deg, rgba(15, 23, 42, .88), rgba(8, 47, 73, .62));
-        box-shadow: 0 20px 70px rgba(0, 0, 0, .22);
+        border-radius: 20px;
+
+        background: var(--panel);
+
+        box-shadow:
+            0 12px 35px rgba(0, 0, 0, 0.28);
     }
 
     .hero::after {
         content: "";
+
         position: absolute;
-        width: 220px;
-        height: 220px;
-        border-radius: 999px;
-        right: -90px;
-        top: -110px;
-        background: rgba(34, 211, 238, .13);
-        filter: blur(2px);
+
+        width: 180px;
+        height: 180px;
+
+        right: -80px;
+        top: -90px;
+
+        border-radius: 50%;
+
+        background: rgba(96, 165, 250, 0.08);
     }
+
+
+    /* ========================================================
+       MARCA
+       ======================================================== */
 
     .brand-row {
         display: flex;
         align-items: center;
-        gap: .9rem;
+        gap: 1rem;
     }
 
     .brand-icon {
         width: 50px;
         height: 50px;
+
         flex: 0 0 50px;
+
         display: grid;
         place-items: center;
-        border-radius: 16px;
-        font-size: 1.45rem;
+
+        border-radius: 14px;
+
+        font-size: 1.35rem;
         font-weight: 800;
-        color: #04111f;
-        background: linear-gradient(135deg, #67e8f9, #60a5fa);
-        box-shadow: 0 10px 30px rgba(34, 211, 238, .18);
+
+        color: #08111C;
+
+        background: #60A5FA;
+
+        box-shadow:
+            0 8px 24px rgba(96, 165, 250, 0.22);
     }
+
+
+    /* ========================================================
+       TÍTULOS
+       ======================================================== */
 
     .hero h1 {
         padding: 0;
         margin: 0;
-        font-size: clamp(1.65rem, 4vw, 2.35rem);
+
+        color: var(--text);
+
+        font-size: clamp(
+            1.65rem,
+            4vw,
+            2.3rem
+        );
+
         line-height: 1.05;
-        letter-spacing: -.04em;
+        letter-spacing: -0.035em;
     }
 
     .hero p {
-        margin: .38rem 0 0 0;
-        color: #b6c4d7;
-        font-size: .98rem;
+        margin: .45rem 0 0 0;
+
+        color: var(--muted);
+
+        font-size: .96rem;
+        line-height: 1.5;
     }
+
+
+    /* ========================================================
+       BADGES
+       ======================================================== */
 
     .badges {
         display: flex;
         flex-wrap: wrap;
-        gap: .5rem;
-        margin-top: 1rem;
+
+        gap: .55rem;
+
+        margin-top: 1.1rem;
     }
 
     .badge {
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        padding: .38rem .66rem;
+
+        gap: .45rem;
+
+        padding: .42rem .72rem;
+
         border-radius: 999px;
+
         border: 1px solid var(--border);
-        background: rgba(15, 23, 42, .62);
-        color: #cbd5e1;
+
+        background: #101720;
+
+        color: var(--text-soft);
+
         font-size: .78rem;
+        font-weight: 500;
     }
 
     .status-dot {
-        width: 7px;
-        height: 7px;
+        width: 8px;
+        height: 8px;
+
+        flex: 0 0 8px;
+
         border-radius: 50%;
+
         background: var(--success);
-        box-shadow: 0 0 10px rgba(52, 211, 153, .75);
+
+        box-shadow:
+            0 0 0 3px rgba(52, 211, 153, 0.12);
     }
+
+
+    /* ========================================================
+       MENSAJES DEL CHAT
+       ======================================================== */
 
     [data-testid="stChatMessage"] {
         border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: .35rem .55rem;
+
+        border-radius: 16px;
+
+        padding: .45rem .7rem;
+
         margin-bottom: .8rem;
-        background: rgba(15, 23, 42, .52);
-        box-shadow: 0 10px 35px rgba(0, 0, 0, .10);
+
+        background: var(--panel);
+
+        box-shadow:
+            0 6px 20px rgba(0, 0, 0, 0.16);
+    }
+
+    [data-testid="stChatMessage"]:hover {
+        border-color: #475569;
     }
 
     [data-testid="stChatMessage"] p,
     [data-testid="stChatMessage"] li {
-        line-height: 1.62;
+        color: var(--text-soft);
+
+        line-height: 1.65;
     }
 
+    [data-testid="stChatMessage"] strong {
+        color: var(--text);
+    }
+
+    [data-testid="stChatMessage"] code {
+        background: var(--code-bg);
+        color: #BFDBFE;
+
+        border: 1px solid var(--border-soft);
+
+        border-radius: 6px;
+
+        padding: .12rem .3rem;
+    }
+
+
+    /* ========================================================
+       BLOQUES DE CÓDIGO
+       ======================================================== */
+
+    [data-testid="stChatMessage"] pre {
+        background: #0D131A !important;
+
+        border: 1px solid var(--border);
+
+        border-radius: 12px;
+
+        padding: 1rem;
+    }
+
+
+    /* ========================================================
+       INPUT DEL CHAT
+       ======================================================== */
+
     [data-testid="stChatInput"] {
-        border-radius: 18px;
+        border-radius: 16px;
     }
 
     [data-testid="stChatInput"] textarea {
         font-size: 1rem;
+
+        color: var(--text) !important;
+
+        background: var(--panel) !important;
     }
 
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: var(--muted-2) !important;
+    }
+
+    [data-testid="stChatInput"] > div {
+        background: var(--panel) !important;
+
+        border: 1px solid var(--border) !important;
+
+        border-radius: 16px !important;
+
+        box-shadow:
+            0 8px 25px rgba(0, 0, 0, 0.18);
+    }
+
+    [data-testid="stChatInput"] > div:focus-within {
+        border-color: var(--border-focus) !important;
+
+        box-shadow:
+            0 0 0 2px rgba(96, 165, 250, 0.18);
+    }
+
+
+    /* ========================================================
+       EMPTY STATE
+       ======================================================== */
+
     .empty-state {
-        padding: 1.1rem 1.2rem;
-        border-radius: 18px;
-        border: 1px dashed rgba(148, 163, 184, .25);
-        background: rgba(15, 23, 42, .36);
+        padding: 1.2rem 1.3rem;
+
+        border-radius: 16px;
+
+        border: 1px dashed #475569;
+
+        background: var(--panel);
+
         color: var(--muted);
+
         margin: .5rem 0 1rem;
     }
 
+    .empty-state strong {
+        color: var(--text);
+    }
+
+
+    /* ========================================================
+       BOTONES
+       ======================================================== */
+
+    .stButton > button,
+    .stDownloadButton > button {
+        min-height: 42px;
+
+        border-radius: 11px;
+
+        border: 1px solid var(--border);
+
+        background: var(--panel-2);
+
+        color: var(--text);
+
+        font-weight: 600;
+
+        transition:
+            background .15s ease,
+            border-color .15s ease,
+            transform .15s ease;
+    }
+
+    .stButton > button:hover,
+    .stDownloadButton > button:hover {
+        background: var(--panel-hover);
+
+        border-color: var(--primary);
+
+        color: #FFFFFF;
+
+        transform: translateY(-1px);
+    }
+
+    .stButton > button:focus-visible,
+    .stDownloadButton > button:focus-visible {
+        outline: 2px solid var(--primary);
+
+        outline-offset: 2px;
+    }
+
+
+    /* ========================================================
+       SLIDERS
+       ======================================================== */
+
+    [data-testid="stSlider"] {
+        color: var(--text);
+    }
+
+    [data-testid="stSlider"] label {
+        color: var(--text-soft) !important;
+
+        font-weight: 600;
+    }
+
+    [data-testid="stSlider"] [role="slider"] {
+        background: var(--primary);
+    }
+
+
+    /* ========================================================
+       SELECTORES / INPUTS
+       ======================================================== */
+
+    input,
+    textarea {
+        color: var(--text) !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: var(--muted-2) !important;
+    }
+
+
+    /* ========================================================
+       CODE / st.code
+       ======================================================== */
+
+    [data-testid="stCode"] {
+        border: 1px solid var(--border);
+
+        border-radius: 10px;
+
+        background: var(--code-bg);
+    }
+
+
+    /* ========================================================
+       EXPANDER
+       ======================================================== */
+
+    [data-testid="stExpander"] {
+        border: 1px solid var(--border);
+
+        border-radius: 12px;
+
+        background: var(--panel);
+    }
+
+    [data-testid="stExpander"] summary {
+        color: var(--text-soft);
+    }
+
+
+    /* ========================================================
+       TEXTO SECUNDARIO
+       ======================================================== */
+
     .tiny-note {
-        color: #64748b;
+        color: var(--muted-2);
+
         font-size: .78rem;
+
         text-align: center;
+
         margin-top: 1.4rem;
     }
 
-    .stButton > button, .stDownloadButton > button {
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        transition: transform .15s ease, border-color .15s ease;
+
+    /* ========================================================
+       DIVISORES
+       ======================================================== */
+
+    hr {
+        border-color: var(--border) !important;
     }
 
-    .stButton > button:hover, .stDownloadButton > button:hover {
-        transform: translateY(-1px);
-        border-color: rgba(34, 211, 238, .42);
+
+    /* ========================================================
+       FOCUS GLOBAL — ACCESIBILIDAD
+       ======================================================== */
+
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible,
+    [tabindex]:focus-visible {
+        outline: 2px solid var(--primary) !important;
+
+        outline-offset: 2px !important;
     }
+
+
+    /* ========================================================
+       RESPONSIVE
+       ======================================================== */
 
     @media (max-width: 640px) {
+
         .block-container {
             padding-top: 1rem;
             padding-left: .8rem;
             padding-right: .8rem;
         }
+
         .hero {
-            border-radius: 20px;
+            border-radius: 16px;
+
             padding: 1.1rem;
         }
+
         .brand-icon {
             width: 44px;
             height: 44px;
+
             flex-basis: 44px;
-            border-radius: 14px;
+
+            border-radius: 12px;
         }
+
+        .badges {
+            gap: .4rem;
+        }
+
+        .badge {
+            font-size: .74rem;
+        }
+
     }
+
     </style>
     """,
     unsafe_allow_html=True,
